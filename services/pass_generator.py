@@ -140,8 +140,9 @@ def _make_stamp_strip(
     icon_size = 72 if rows == 1 else 60
     padding_x = 40
     spacing_x = (width - padding_x * 2) // max(1, cols - 1) if cols > 1 else 0
-    spacing_y = 90
-    start_y = (height - (rows * icon_size + (rows - 1) * 20)) // 2 + 15
+    spacing_y = 80
+    # Move start_y down to avoid overlap with native Apple text at the top
+    start_y = 110 if rows == 1 else 95
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
     empty_icon = None
@@ -166,7 +167,11 @@ def _make_stamp_strip(
             img.paste(stamp_img, (int(x), int(y)), stamp_img)
 
     if campaign_name:
-        draw.text((20, 10), tr_upper(campaign_name), fill=(*fg_rgb, 180), font=_get_bold_font(22))
+        # Move campaign name to top-center
+        campaign_font = _get_bold_font(24)
+        c_bbox = draw.textbbox((0, 0), tr_upper(campaign_name), font=campaign_font)
+        c_w = c_bbox[2] - c_bbox[0]
+        draw.text(((width - c_w) // 2, 15), tr_upper(campaign_name), fill=(*fg_rgb, 200), font=campaign_font)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -228,9 +233,15 @@ def build_pkpass(
             "labelColor": label_color,
             "storeCard": {
                 "primaryFields": [{"key": "balance", "label": "PUAN", "value": f"{current_stamps} / {goal}"}],
-                "secondaryFields": [{"key": "customer", "label": "AD SOYAD", "value": user_name}],
-                "auxiliaryFields": [{"key": "reward", "label": "HEDİYE", "value": reward_text}],
-                "backFields": [{"key": "info", "label": "BİLGİ", "value": f"{goal} damgada 1 {reward_text} hediye!"}]
+                "secondaryFields": [
+                    {"key": "campaign", "label": "KAMPANYA", "value": campaign_name}
+                ],
+                "auxiliaryFields": [
+                    {"key": "reward", "label": "HEDİYE", "value": reward_text}
+                ],
+                "backFields": [
+                    {"key": "info", "label": "BİLGİ", "value": f"{goal} damgada 1 {reward_text} hediye!"}
+                ]
             },
             "barcode": {"message": f"{settings.api_base_url}/redeem/{pass_id}", "format": "PKBarcodeFormatQR", "messageEncoding": "iso-8859-1"}
         }
