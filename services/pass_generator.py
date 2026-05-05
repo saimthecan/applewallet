@@ -154,14 +154,6 @@ def _make_stamp_strip(
 
     draw = ImageDraw.Draw(img)
 
-    # Draw logo icon on the top-right of the strip if provided
-    if logo_icon:
-        l_img = Image.open(BytesIO(logo_icon)).convert("RGBA")
-        l_size = 60
-        l_img = l_img.resize((l_size, l_size), Image.LANCZOS)
-        # Paste with a small margin from top-right
-        img.paste(l_img, (width - l_size - 25, 25), l_img)
-
     # Grid logic
     cols = goal if goal <= 6 else (goal + 1) // 2
     rows = 1 if goal <= 6 else 2
@@ -244,8 +236,8 @@ def build_pkpass(
         zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
         zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
         
-        # Pass the logo icon to be drawn on the strip
-        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, logo_icon=icon)
+        # Include campaign_name in the strip generation
+        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name)
         zf.writestr("strip.png", strip); zf.writestr("strip@2x.png", strip)
         
         pass_json = {
