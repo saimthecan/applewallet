@@ -1,5 +1,6 @@
 from urllib.parse import quote
 import uuid
+from typing import Optional
 
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
