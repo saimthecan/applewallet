@@ -4,8 +4,8 @@ import uuid
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
 
-from app.core.config import settings
-from app.services.pass_generator import build_pkpass
+from core.config import settings
+from services.pass_generator import build_pkpass
 
 
 app = FastAPI(title="Wallet Pass Test", version="0.1.0")
@@ -104,33 +104,25 @@ def index():
 @app.get("/pass")
 def pass_file():
     _require_signing_config()
+    
+    # Yeni sistem: 3/8 kahve, kahve emojisi ile
     pkpass = build_pkpass(
         pass_id=f"test-{uuid.uuid4()}",
-        customer_identifier="TEST_ONLY",
-        campaign_id="test-campaign",
-        current_stamps=0,
+        serial=f"SER-{uuid.uuid4().hex[:8].upper()}",
+        user_name="Saim Can Özgen",
+        current_stamps=3,
+        goal=8,
+        stamp_symbol="☕",
         merchant_name="Bear Coffee",
-        primary_color="#8b00b8",
-        label_color="#ffffff",
-        campaign_goal=5,
-        reward_text="FILTRE KAHVE",
-        campaign_name="5 KAHVE ALANA 1 ADET BIZDEN",
-        stamp_label="Puan",
-        reward_label="ODUL",
-        loyalty_card_label="Test Kart",
-        instagram=None,
-        auth_token=None,
-        qr_message_override="TEST_ONLY",
-        pending_rewards=1,
-        total_rewards_earned=1,
-        stamp_icon="*",
-        location_name=None,
-        scope_location_id=None,
-        business_display_name="Bear Coffee",
-        location_latitude=None,
-        location_longitude=None,
+        campaign_name="8 KAHVE ALANA 1 ADET BİZDEN",
+        reward_text="Filtre Kahve",
+        primary_color="#7C3AED",
+        label_color="#FFFFFF",
+        foreground_color="#FFFFFF",
+        instagram="loyalbear.co",
         language="tr",
     )
+    
     return Response(
         content=pkpass,
         media_type="application/vnd.apple.pkpass",

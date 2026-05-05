@@ -310,145 +310,108 @@ def _load_mascot() -> Optional[Image.Image]:
     return None
 
 
-def _make_stamp_strip(
-    current_stamps: int,
-    goal: int,
-    primary_color: str,
-    label_color: str,
-    stamp_icon: str = "★",
-    pending_rewards: int = 0,
-    campaign_name: str | None = None,
-    reward_text: str | None = None,
-    instagram: str | None = None,
-) -> bytes:
+def build_pkpass_source(
+    pass_id: str,
+    serial: str,
+    user_name: str = "Değerli Müşterimiz",
+    current_stamps: int = 0,
+    goal: int = 10,
+    stamp_symbol: str = "☕",
+    merchant_name: str = "Lounge Club",
+    campaign_name: str = "5 Kahve Alana 1 Hediye",
+    reward_text: str = "Filtre Kahve",
+    primary_color: str = "#064E3B",
+    label_color: str = "#FFFFFF",
+    foreground_color: str = "#FFFFFF",
+    instagram: str | None = "loyalbear.co",
+    auth_token: str | None = None,
+    language: str = "tr",
+) -> BytesIO:
     """
-    Generate strip.png for Apple Wallet storeCard.  750×300 @2x.
-
-    The strip is a BACKGROUND image — iOS renders primaryFields text
-    ("0 / 5 Puan") ON TOP of it.  We keep the strip clean with just
-    branding elements.  Stamp progress is shown by the native iOS text.
-
-    Layout:
-      ┌──────────────────────────────────────┐
-      │  🐻 (mascot)         [IG] @merchant  │  top-right
-      │  (subtle,                             │
-      │   bottom-right) (iOS renders text)    │  ← primaryFields overlay
-      │                                       │
-      │  [🎁 badge if pending]                │  reward badge
-      └──────────────────────────────────────┘
-      iOS renders secondary/auxiliary fields below the strip.
+    Generate the full .pkpass bundle in memory.
     """
-    width, height = 750, 300
-    bg = _hex_to_rgb(primary_color)
-    fg = _hex_to_rgb(label_color)
-
-    img = Image.new("RGBA", (width, height), color=(*bg, 255))
-    draw = ImageDraw.Draw(img)
-
-    # ── Mascot watermark (bottom-right, subtle) ───────────────────────────────
-    mascot_src = _load_mascot()
-    if mascot_src:
-        # Scale mascot to ~85% of strip height, positioned bottom-right
-        mascot_h = int(height * 0.85)
-        aspect = mascot_src.width / mascot_src.height
-        mascot_w = int(mascot_h * aspect)
-        mascot_resized = mascot_src.resize((mascot_w, mascot_h), Image.LANCZOS)
-
-        # Reduce opacity to ~30% so it's visible but doesn't overwhelm iOS text
-        alpha = mascot_resized.split()[3]
-        alpha = alpha.point(lambda p: int(p * 0.30))
-        mascot_resized.putalpha(alpha)
-
-        # Position: bottom-right corner, slightly inset
-        mx = width - mascot_w + 20  # let it bleed off the right edge slightly
-        my = height - mascot_h + 10  # let it bleed off the bottom slightly
-        img.paste(mascot_resized, (mx, my), mascot_resized)
-
-    # ── Fonts ─────────────────────────────────────────────────────────────────
-    small_font = _get_bold_font(18)
-    tiny_font = _get_bold_font(15)
-
-    # ── Campaign name subtitle (top-left, below iOS header bar) ───────────────
-    if campaign_name:
-        campaign_font = _get_bold_font(20)
-        c_x = 16
-        c_y = 10
-        _draw_text_with_emoji(
-            img, draw, (c_x, c_y), campaign_name,
-            fill=(*fg, 200), font=campaign_font, emoji_size=22,
-        )
-
-    # ── Merchant Instagram (top-right corner) ─────────────────────────────────
-    if instagram:
-        ig_icon_size = 20
-        ig_text = f"@{instagram}"
-        ig_bbox = draw.textbbox((0, 0), ig_text, font=small_font)
-        ig_tw = ig_bbox[2] - ig_bbox[0]
-        ig_th = ig_bbox[3] - ig_bbox[1]
-        ig_right_margin = 16
-        ig_top_margin = 14
-        ig_total_w = ig_icon_size + 6 + ig_tw
-        ig_x = width - ig_right_margin - ig_total_w
-        ig_y = ig_top_margin
-        _draw_ig_icon(draw, ig_x, ig_y, ig_icon_size, (*fg, 255))
-        draw.text(
-            (ig_x + ig_icon_size + 6 - ig_bbox[0], ig_y + (ig_icon_size - ig_th) // 2 - ig_bbox[1]),
-            ig_text, fill=(*fg, 255), font=small_font,
-        )
-
-    # ── Pending reward badge (bottom-left) ────────────────────────────────────
-    if pending_rewards > 0:
-        badge_font = _get_bold_font(22)
-        # Build badge label (no emoji in PIL text — we composite the image separately)
-        badge_label = f"{pending_rewards} Ödülünüz Hazır!" if pending_rewards > 1 else "Ödülünüz Hazır!"
-        emoji_size = 26  # px for the gift emoji image
-        gap = 8          # gap between emoji and text
-
-        b_bbox = draw.textbbox((0, 0), badge_label, font=badge_font)
-        btext_w = b_bbox[2] - b_bbox[0]
-        btext_h = b_bbox[3] - b_bbox[1]
-
-        pad_x = 14
-        bh = 40
-        bw = pad_x + emoji_size + gap + btext_w + pad_x
-        bx = 14
-        by = height - bh - 44  # sit just above the footer divider
-
-        # Draw amber pill background
-        draw.rounded_rectangle(
-            [bx, by, bx + bw, by + bh],
-            radius=bh // 2,
-            fill=(*_hex_to_rgb("#F59E0B"), 235),
-        )
-
-        # Composite gift emoji PNG (Twemoji) — avoids broken □ glyph on Linux
-        emoji_img = _fetch_twemoji("🎁", emoji_size)
-        text_x = bx + pad_x
-        emoji_y = by + (bh - emoji_size) // 2
-        if emoji_img:
-            img.paste(emoji_img, (text_x, emoji_y), emoji_img)
-        else:
-            # Fallback: draw a text star if CDN unavailable
-            draw.text((text_x, emoji_y), "*", fill=(255, 255, 255), font=badge_font)
-
-        # Draw the badge label text next to the emoji
-        text_x_label = text_x + emoji_size + gap
-        text_y_label = by + (bh - btext_h) // 2 - b_bbox[1]
-        draw.text((text_x_label, text_y_label), badge_label, fill=(255, 255, 255), font=badge_font)
-
-    # ── Subtle "Powered by" watermark — sits inside strip, well above the
-    #    iOS-rendered secondary/auxiliary fields that appear below the strip.
-    branding_font = _get_bold_font(13)
-    branding_text = f"Powered by {settings.app_name}  ·  {settings.app_domain}"
-    br_bbox = draw.textbbox((0, 0), branding_text, font=branding_font)
-    br_w = br_bbox[2] - br_bbox[0]
-    br_x = (width - br_w) // 2 - br_bbox[0]
-    br_y = height - 28  # inside strip, above the iOS field boundary
-    draw.text((br_x, br_y), branding_text, fill=(*fg, 60), font=branding_font)
-
+    # 1. Create a temporary folder structure (in-memory zip)
     buf = BytesIO()
-    img.save(buf, format="PNG")
-    return buf.getvalue()
+    with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
+        # Assets (Icons/Logo/Strip)
+        icon_data = _make_icon_png(58, primary_color, merchant_name[0])
+        zf.writestr("icon.png", _make_icon_png(29, primary_color, merchant_name[0]))
+        zf.writestr("icon@2x.png", icon_data)
+
+        logo_data = _make_icon_png(58, primary_color, merchant_name[0])
+        zf.writestr("logo.png", _make_icon_png(29, primary_color, merchant_name[0]))
+        zf.writestr("logo@2x.png", logo_data)
+
+        # Dynamic Strip (The Stamp Grid)
+        strip_data = _make_stamp_strip(
+            current_stamps=current_stamps,
+            goal=goal,
+            primary_color=primary_color,
+            label_color=label_color,
+            stamp_symbol=stamp_symbol,
+            campaign_name=campaign_name,
+            reward_text=reward_text,
+            instagram=instagram,
+        )
+        zf.writestr("strip.png", strip_data)
+        zf.writestr("strip@2x.png", strip_data)
+
+        # pass.json
+        pass_json = {
+            "formatVersion": 1,
+            "passTypeIdentifier": settings.apple_pass_type_id,
+            "serialNumber": serial,
+            "teamIdentifier": settings.apple_team_id,
+            "organizationName": merchant_name,
+            "description": campaign_name,
+            "logoText": merchant_name,
+            "backgroundColor": primary_color,
+            "foregroundColor": foreground_color,
+            "labelColor": label_color,
+            "storeCard": {
+                "primaryFields": [
+                    {
+                        "key": "balance",
+                        "label": "PUAN",
+                        "value": f"{current_stamps} / {goal}",
+                    }
+                ],
+                "secondaryFields": [
+                    {
+                        "key": "customer",
+                        "label": "AD SOYAD",
+                        "value": user_name,
+                    }
+                ],
+                "auxiliaryFields": [
+                    {
+                        "key": "reward",
+                        "label": "HEDİYE",
+                        "value": reward_text,
+                    },
+                    {
+                        "key": "stamps_left",
+                        "label": "KALAN",
+                        "value": f"{max(0, goal - current_stamps)}",
+                    }
+                ],
+                "backFields": [
+                    {
+                        "key": "info",
+                        "label": "KAMPANYA DETAYI",
+                        "value": f"Bu dijital sadakat kartı ile {goal} adet {reward_text} alımınızda 1 adet hediye kazanırsınız. QR kodu her alışverişinizde okutmayı unutmayın!",
+                    }
+                ],
+            },
+            "barcode": {
+                "message": f"{settings.api_base_url}/redeem/{pass_id}",
+                "format": "PKBarcodeFormatQR",
+                "messageEncoding": "iso-8859-1",
+            },
+        }
+        zf.writestr("pass.json", json.dumps(pass_json, ensure_ascii=False).encode())
+
+    return buf
 
 
 def _load_signing_assets() -> tuple:
@@ -480,212 +443,6 @@ def _sign_manifest(manifest_bytes: bytes) -> bytes:
     )
     return signature
 
-
-def build_pkpass_source(
-    pass_id: str,
-    customer_identifier: str,
-    campaign_id: str,
-    current_stamps: int,
-    merchant_name: str,
-    primary_color: str,
-    label_color: str,
-    campaign_goal: int,
-    reward_text: str,
-    campaign_name: str,
-    stamp_label: str,
-    reward_label: str,
-    loyalty_card_label: str,
-    instagram: str | None = None,
-    auth_token: str | None = None,
-    qr_message_override: str | None = None,
-    pending_rewards: int = 0,
-    total_rewards_earned: int = 0,
-    stamp_icon: str = "★",
-    location_name: str | None = None,
-    scope_location_id: str | None = None,
-    business_display_name: str | None = None,
-    location_latitude: float | None = None,
-    location_longitude: float | None = None,
-    language: str = "tr",
-) -> dict:
-    """Build the raw pass.json and image files used by a .pkpass archive.
-    
-    The QR barcode encodes "{customer_identifier}|{campaign_id}" for shared passes
-    and "{customer_identifier}|{campaign_id}|{location_id}" for per-location passes.
-    
-    organizationName = business_display_name or "{location_name} - {merchant_name}"
-    """
-
-    r, g, b = _hex_to_rgb(primary_color)
-    lr, lg, lb = _hex_to_rgb(label_color)
-
-    qr_message = qr_message_override or (
-        f"{customer_identifier}|{campaign_id}|{scope_location_id}"
-        if scope_location_id
-        else f"{customer_identifier}|{campaign_id}"
-    )
-
-    # organizationName used in pass list (metadata) — show formatted business name if provided
-    display_name = business_display_name or (f"{location_name} - {merchant_name}" if location_name else merchant_name)
-
-    # ── Secondary fields: reward (what they earn — front and centre) ────────
-    secondary_fields: list[dict] = [
-        {
-            "key": "reward",
-            "label": reward_label,
-            "value": reward_text,
-        },
-    ]
-
-    # ── Auxiliary fields: clean stats (no emoji clutter) ────────────────────
-    pending_display = (f"{pending_rewards} Hazır!" if pending_rewards > 1 else "Hazır!") if pending_rewards > 0 else "—"
-    auxiliary_fields: list[dict] = [
-        {
-            "key": "earned",
-            "label": "KAZANILAN",
-            "value": str(total_rewards_earned) if total_rewards_earned > 0 else "—",
-        },
-        {
-            "key": "redeemed",
-            "label": "KULLANILAN",
-            "value": str(total_rewards_earned - pending_rewards) if total_rewards_earned > 0 else "—",
-        },
-        *(
-            [{
-                "key": "pending",
-                "label": "BEKLEYEN",
-                "value": pending_display,
-                "changeMessage": "Ödül kazandın! %@",
-            }]
-            if pending_rewards > 0 else []
-        ),
-    ]
-
-    # ── Back fields: loyalbear.co + instagram (for curious people) ────
-    back_fields: list[dict] = [
-        {
-            "key": "website",
-            "label": "Sadakat Platformu",
-            "value": settings.app_domain,
-            "dataDetectorTypes": ["PKDataDetectorTypeLink"],
-            "attributedValue": f"<a href='https://{settings.app_domain}'>{settings.app_domain}</a>",
-        },
-        {
-            "key": "sw_instagram",
-            "label": f"{settings.app_name} Instagram",
-            "value": "@loyalbear.co",
-            "dataDetectorTypes": ["PKDataDetectorTypeLink"],
-            "attributedValue": "<a href='https://instagram.com/loyalbear.co'>@loyalbear.co</a>",
-        },
-    ]
-    if instagram:
-        back_fields.append({
-            "key": "instagram",
-            "label": "Instagram",
-            "value": f"@{instagram}",
-            "dataDetectorTypes": ["PKDataDetectorTypeLink"],
-            "attributedValue": f"<a href='https://instagram.com/{instagram}'>@{instagram}</a>",
-        })
-
-    pass_json: dict = {
-        "formatVersion": 1,
-        "passTypeIdentifier": settings.apple_pass_type_id,
-        "serialNumber": pass_id,
-        "teamIdentifier": settings.apple_team_id,
-        "organizationName": display_name,
-        "logoText": business_display_name or merchant_name,
-        "description": f"{display_name} {loyalty_card_label}",
-        "backgroundColor": f"rgb({r},{g},{b})",
-        "labelColor": f"rgb({lr},{lg},{lb})",
-        "foregroundColor": f"rgb({lr},{lg},{lb})",
-        "storeCard": {
-            "headerFields": [],
-            "primaryFields": [
-                {
-                    "key": "stamps",
-                    "label": stamp_label,
-                    "value": f"{current_stamps} / {campaign_goal}",
-                    "changeMessage": "Yeni puan eklendi! %@",
-                }
-            ],
-            "secondaryFields": secondary_fields,
-            "auxiliaryFields": auxiliary_fields,
-            "backFields": back_fields,
-        },
-        "barcode": {
-            "message": qr_message,
-            "format": "PKBarcodeFormatQR",
-            "messageEncoding": "iso-8859-1",
-        },
-        "barcodes": [
-            {
-                "message": qr_message,
-                "format": "PKBarcodeFormatQR",
-                "messageEncoding": "iso-8859-1",
-            }
-        ],
-    }
-
-    # ── Location-based lock screen notification (Apple Wallet proximity) ──
-    if location_latitude is not None and location_longitude is not None:
-        stamps_left = max(0, campaign_goal - current_stamps)
-        display = location_name or merchant_name
-        if language == "tr":
-            if pending_rewards > 0:
-                relevant_text = f"🎁 {display} — ödülünüz hazır! Uğrayın ve {reward_text} kazanın!"
-            elif stamps_left == 1:
-                relevant_text = f"🎯 {display} — sadece 1 puan kaldı! Bir alışveriş daha yapın ve {reward_text} kazanın!"
-            elif stamps_left <= 3 and current_stamps > 0:
-                relevant_text = (
-                    f"☕ {display} yakınındasınız! {stamps_left} puan daha ile "
-                    f"{reward_text} kazanabilirsiniz — uğramaya ne dersiniz?"
-                )
-            elif current_stamps > 0:
-                relevant_text = (
-                    f"☕ {display} yakınındasınız — {current_stamps}/{campaign_goal} puan topladınız! "
-                    f"Hedefinize yaklaşın, {reward_text} sizi bekliyor!"
-                )
-            else:
-                relevant_text = (
-                    f"☕ {display} yakınındasınız — ilk alışverişinizi yapın ve "
-                    f"{reward_text} kazanmaya başlayın!"
-                )
-        else:
-            if pending_rewards > 0:
-                relevant_text = f"🎁 {display} — your reward is ready! Stop by and claim your {reward_text}!"
-            elif stamps_left == 1:
-                relevant_text = f"🎯 {display} — just 1 more visit to earn {reward_text}! Don't miss out!"
-            elif stamps_left <= 3 and current_stamps > 0:
-                relevant_text = (
-                    f"☕ You're near {display}! Only {stamps_left} more stamps to earn "
-                    f"{reward_text} — why not stop by?"
-                )
-            elif current_stamps > 0:
-                relevant_text = (
-                    f"☕ You're near {display} — {current_stamps}/{campaign_goal} stamps collected! "
-                    f"Keep going, {reward_text} is waiting for you!"
-                )
-            else:
-                relevant_text = (
-                    f"☕ You're near {display} — visit now and start earning "
-                    f"your way to {reward_text}!"
-                )
-
-        pass_json["locations"] = [
-            {
-                "latitude": location_latitude,
-                "longitude": location_longitude,
-                "relevantText": relevant_text,
-            }
-        ]
-        pass_json["maxDistance"] = 500  # meters
-
-    # Add PassKit Web Service info only when we have an HTTPS URL
-    # Apple rejects passes with non-HTTPS or unreachable webServiceURL
-    base = settings.api_base_url.rstrip('/')
-    if auth_token and base.startswith("https://"):
-        pass_json["webServiceURL"] = f"{base}/passkit/"
-        pass_json["authenticationToken"] = auth_token
 
     pass_json_bytes = json.dumps(pass_json, ensure_ascii=False).encode()
     # Icon: branch initial for the Wallet pass list
