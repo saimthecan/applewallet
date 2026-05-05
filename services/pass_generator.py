@@ -140,9 +140,9 @@ def _make_stamp_strip(
     icon_size = 72 if rows == 1 else 60
     padding_x = 40
     spacing_x = (width - padding_x * 2) // max(1, cols - 1) if cols > 1 else 0
-    spacing_y = 90
-    # Center stamps now that primaryField is empty
-    start_y = (height - (rows * icon_size + (rows - 1) * 20)) // 2 + 5
+    spacing_y = 80
+    # Move stamps down to make room for campaign name at the top of the strip
+    start_y = 110 if rows == 1 else 95
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
     empty_icon = None
@@ -165,6 +165,13 @@ def _make_stamp_strip(
         stamp_img = filled_icon if is_filled else empty_icon
         if stamp_img:
             img.paste(stamp_img, (int(x), int(y)), stamp_img)
+
+    if campaign_name:
+        # Draw campaign name at the top of the strip
+        campaign_font = _get_bold_font(24)
+        c_bbox = draw.textbbox((0, 0), tr_upper(campaign_name), font=campaign_font)
+        c_w = c_bbox[2] - c_bbox[0]
+        draw.text(((width - c_w) // 2, 15), tr_upper(campaign_name), fill=(*fg_rgb, 200), font=campaign_font)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -210,8 +217,9 @@ def build_pkpass(
         icon = _make_icon_png(58, primary_color, merchant_name[0])
         zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
         zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
-        # Use simple strip without drawing text, just the stamps
-        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol)
+        
+        # Include campaign_name in the strip generation
+        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name)
         zf.writestr("strip.png", strip); zf.writestr("strip@2x.png", strip)
         
         pass_json = {
@@ -227,11 +235,11 @@ def build_pkpass(
             "labelColor": label_color,
             "storeCard": {
                 "headerFields": [
-                    {"key": "puan_header", "label": "DAMGA", "value": f"{current_stamps} / {goal}"}
+                    {"key": "bear_header", "label": "LOYO", "value": "🐻"}
                 ],
-                "primaryFields": [], # Empty to avoid overlap
+                "primaryFields": [], 
                 "secondaryFields": [
-                    {"key": "campaign", "label": "KAMPANYA", "value": campaign_name}
+                    {"key": "puan", "label": "PUAN", "value": f"{current_stamps} / {goal}"}
                 ],
                 "auxiliaryFields": [
                     {"key": "reward", "label": "HEDİYE", "value": reward_text}
