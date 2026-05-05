@@ -5,8 +5,12 @@ from typing import Optional
 from fastapi import FastAPI, HTTPException
 from fastapi.responses import HTMLResponse, Response
 
-from core.config import settings
-from services.pass_generator import build_pkpass
+try:
+    from core.config import settings
+    from services.pass_generator import build_pkpass
+except ModuleNotFoundError:
+    from .core.config import settings
+    from .services.pass_generator import build_pkpass
 
 
 app = FastAPI(title="Wallet Pass Test", version="0.1.0")

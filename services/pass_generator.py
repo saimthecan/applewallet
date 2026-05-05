@@ -19,9 +19,12 @@ from cryptography.hazmat.primitives.serialization.pkcs7 import (
     PKCS7SignatureBuilder,
 )
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
-from PIL import Image, ImageDraw, ImageFont
+from PIL import Image, ImageDraw, ImageFilter, ImageFont
 
-from core.config import settings
+try:
+    from core.config import settings
+except ModuleNotFoundError:
+    from ..core.config import settings
 
 
 # ── Turkish-safe uppercase ────────────────────────────────────────────────────
@@ -129,6 +132,70 @@ def _load_strip_bg() -> Optional[Image.Image]:
             pass
     return None
 
+_STAMP_LAYOUTS = {
+    2: {"rows": [2], "icon": 88, "gap_x": 170, "gap_y": 0},
+    3: {"rows": [3], "icon": 86, "gap_x": 150, "gap_y": 0},
+    4: {"rows": [4], "icon": 80, "gap_x": 130, "gap_y": 0},
+    5: {"rows": [5], "icon": 74, "gap_x": 114, "gap_y": 0},
+    6: {"rows": [3, 3], "icon": 78, "gap_x": 148, "gap_y": 100},
+    7: {"rows": [4, 3], "icon": 74, "gap_x": 126, "gap_y": 98},
+    8: {"rows": [4, 4], "icon": 72, "gap_x": 128, "gap_y": 96},
+    9: {"rows": [5, 4], "icon": 68, "gap_x": 114, "gap_y": 94},
+    10: {"rows": [5, 5], "icon": 66, "gap_x": 112, "gap_y": 92},
+}
+
+def _clamp_stamp_goal(goal: int) -> int:
+    return max(2, min(10, int(goal)))
+
+def _blend_rgb(color_a: tuple, color_b: tuple, amount: float) -> tuple:
+    amount = max(0.0, min(1.0, amount))
+    return tuple(int(a * (1 - amount) + b * amount) for a, b in zip(color_a, color_b))
+
+def _draw_blurred_ellipse(img: Image.Image, bbox: list, fill: tuple, blur: int) -> None:
+    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    layer_draw = ImageDraw.Draw(layer)
+    layer_draw.ellipse(bbox, fill=fill)
+    img.alpha_composite(layer.filter(ImageFilter.GaussianBlur(blur)))
+
+def _draw_premium_stamp_slot(
+    img: Image.Image,
+    draw: ImageDraw.ImageDraw,
+    x: int,
+    y: int,
+    icon_size: int,
+    primary_rgb: tuple,
+    filled: bool,
+) -> tuple:
+    center_x = x + icon_size // 2
+    center_y = y + icon_size // 2
+    radius = icon_size // 2 + 9
+    bbox = [center_x - radius, center_y - radius, center_x + radius, center_y + radius]
+    shadow_box = [bbox[0] + 2, bbox[1] + 5, bbox[2] + 2, bbox[3] + 5]
+
+    if filled:
+        base = (*primary_rgb, 232)
+        rim = (*_blend_rgb(primary_rgb, (255, 255, 255), 0.24), 235)
+        inner = (*_blend_rgb(primary_rgb, (30, 20, 55), 0.20), 240)
+        shine = (255, 255, 255, 54)
+        _draw_blurred_ellipse(img, shadow_box, (34, 20, 58, 88), 8)
+        _draw_blurred_ellipse(img, [bbox[0] - 5, bbox[1] - 5, bbox[2] + 5, bbox[3] + 5], (*primary_rgb, 42), 10)
+        draw.ellipse(bbox, fill=base, outline=rim, width=3)
+        inset = 7
+        draw.ellipse([bbox[0] + inset, bbox[1] + inset, bbox[2] - inset, bbox[3] - inset], outline=inner, width=2)
+        draw.arc([bbox[0] + 12, bbox[1] + 10, bbox[2] - 12, bbox[3] - 12], 205, 335, fill=shine, width=3)
+        icon_alpha = 255
+    else:
+        base = (*primary_rgb, 118)
+        rim = (*_blend_rgb(primary_rgb, (255, 255, 255), 0.34), 96)
+        inner = (*primary_rgb, 62)
+        _draw_blurred_ellipse(img, shadow_box, (34, 20, 58, 42), 7)
+        draw.ellipse(bbox, fill=base, outline=rim, width=2)
+        inset = 8
+        draw.ellipse([bbox[0] + inset, bbox[1] + inset, bbox[2] - inset, bbox[3] - inset], outline=inner, width=2)
+        icon_alpha = 22
+
+    return (x, y, icon_alpha)
+
 def _make_stamp_strip(
     current_stamps: int,
     goal: int,
@@ -141,6 +208,8 @@ def _make_stamp_strip(
     logo_icon: Optional[bytes] = None,
 ) -> bytes:
     width, height = 750, 300
+    goal = _clamp_stamp_goal(goal)
+    current_stamps = max(0, min(goal, int(current_stamps)))
     
     # Load custom background or fallback to solid color
     bg_img = _load_strip_bg()
@@ -154,46 +223,41 @@ def _make_stamp_strip(
 
     draw = ImageDraw.Draw(img)
 
-    # Refined Grid logic for a perfect "premium" balance
-    cols = goal if goal <= 5 else (goal + 1) // 2
-    rows = 1 if goal <= 5 else 2
-    icon_size = 72
-    
-    # Using 135px for a perfect balance between "too spread" and "too crowded"
-    spacing_x = 135
-    spacing_y = 100 if rows == 2 else 0
-    
-    # Calculate the total width of the grid to center it
-    total_grid_w = (cols - 1) * spacing_x + icon_size
-    start_x_base = (width - total_grid_w) // 2
-    
-    # Vertical centering with a bit of breathing room
-    grid_h = (rows - 1) * spacing_y + icon_size
-    start_y = (height - grid_h) // 2 + 35
+    layout = _STAMP_LAYOUTS[goal]
+    row_counts = layout["rows"]
+    icon_size = layout["icon"]
+    spacing_x = layout["gap_x"]
+    spacing_y = layout["gap_y"]
+    primary_rgb = _hex_to_rgb(primary_color)
+
+    grid_h = (len(row_counts) - 1) * spacing_y + icon_size
+    stamp_area_top = 62 if campaign_name else 34
+    stamp_area_bottom = height - 22
+    start_y = stamp_area_top + max(0, (stamp_area_bottom - stamp_area_top - grid_h) // 2)
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
-    empty_icon = None
-    if filled_icon:
-        empty_icon = filled_icon.copy()
-        alpha = empty_icon.split()[3].point(lambda p: int(p * 0.20))
-        empty_icon.putalpha(alpha)
-
-    for i in range(goal):
-        r, c = i // cols, i % cols
-        
-        # Calculate centering for each row (in case the last row has fewer items)
-        row_count = cols if (r < rows - 1) else (goal - r * cols)
+    stamp_index = 0
+    for row_index, row_count in enumerate(row_counts):
         row_w = (row_count - 1) * spacing_x + icon_size
-        x = (width - row_w) // 2 + c * spacing_x
-        y = start_y + r * spacing_y
+        y = start_y + row_index * spacing_y
 
-        circle_r = icon_size // 2 + 8
-        draw.ellipse([x+icon_size//2-circle_r, y+icon_size//2-circle_r, x+icon_size//2+circle_r, y+icon_size//2+circle_r], fill=(*fg_rgb, 40))
+        for col_index in range(row_count):
+            x = (width - row_w) // 2 + col_index * spacing_x
+            is_filled = stamp_index < current_stamps
+            _, _, icon_alpha = _draw_premium_stamp_slot(img, draw, int(x), int(y), icon_size, primary_rgb, is_filled)
 
-        is_filled = i < current_stamps
-        stamp_img = filled_icon if is_filled else empty_icon
-        if stamp_img:
-            img.paste(stamp_img, (int(x), int(y)), stamp_img)
+            if filled_icon:
+                stamp_img = filled_icon.copy()
+                if icon_alpha < 255:
+                    alpha = stamp_img.split()[3].point(lambda p: int(p * icon_alpha / 255))
+                    stamp_img.putalpha(alpha)
+                icon_padding = 4 if is_filled else 9
+                if icon_padding:
+                    stamp_img = stamp_img.resize((icon_size - icon_padding * 2, icon_size - icon_padding * 2), Image.LANCZOS)
+                paste_x = int(x) + icon_padding
+                paste_y = int(y) + icon_padding
+                img.paste(stamp_img, (paste_x, paste_y), stamp_img)
+            stamp_index += 1
 
     if campaign_name:
         campaign_font = _get_bold_font(24)
@@ -239,12 +303,23 @@ def build_pkpass(
     instagram: Optional[str] = "loyalbear.co",
     auth_token: Optional[str] = None,
     language: str = "tr",
+    logo_image: Optional[bytes] = None,
 ) -> bytes:
+    goal = _clamp_stamp_goal(goal)
+    current_stamps = max(0, min(goal, int(current_stamps)))
+
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        icon = _make_icon_png(60, primary_color, merchant_name[0])
-        zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
-        zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
+        if logo_image:
+            # Use provided merchant logo
+            zf.writestr("icon.png", logo_image); zf.writestr("icon@2x.png", logo_image)
+            zf.writestr("logo.png", logo_image); zf.writestr("logo@2x.png", logo_image)
+            icon_for_strip = logo_image # If we want to use it in strip as well
+        else:
+            # Fallback to generated initial letter
+            icon = _make_icon_png(60, primary_color, merchant_name[0])
+            zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
+            zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
         
         # Include campaign_name in the strip generation
         strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name)
