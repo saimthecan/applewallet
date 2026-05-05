@@ -21,7 +21,7 @@ from cryptography.hazmat.primitives.serialization.pkcs7 import (
 from cryptography.x509 import load_der_x509_certificate, load_pem_x509_certificate
 from PIL import Image, ImageDraw, ImageFont
 
-from core.config import settings
+from app.core.config import settings
 
 
 # ── Turkish-safe uppercase ────────────────────────────────────────────────────
