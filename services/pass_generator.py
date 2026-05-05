@@ -117,6 +117,18 @@ def _make_icon_png(size: int, hex_color: str, initial: str) -> bytes:
     img.save(buf, format="PNG")
     return buf.getvalue()
 
+_MASCOT_PATH = Path(__file__).parent / "assets" / "mascot-default.png"
+_STRIP_BG_PATH = Path(__file__).parent / "assets" / "strip_bg.png"
+_MASCOT_IMAGE_CACHE: Optional[Image.Image] = None
+
+def _load_strip_bg() -> Optional[Image.Image]:
+    if _STRIP_BG_PATH.exists():
+        try:
+            return Image.open(_STRIP_BG_PATH).convert("RGBA")
+        except Exception:
+            pass
+    return None
+
 def _make_stamp_strip(
     current_stamps: int,
     goal: int,
@@ -128,10 +140,18 @@ def _make_stamp_strip(
     instagram: Optional[str] = None,
 ) -> bytes:
     width, height = 750, 300
-    bg_rgb = _hex_to_rgb(primary_color)
-    fg_rgb = _hex_to_rgb(label_color)
+    
+    # Load custom background or fallback to solid color
+    bg_img = _load_strip_bg()
+    if bg_img:
+        img = bg_img.resize((width, height), Image.LANCZOS)
+        # On light background, use dark text if primary color is too light
+        fg_rgb = (40, 30, 20) # Deep coffee brown
+    else:
+        bg_rgb = _hex_to_rgb(primary_color)
+        img = Image.new("RGBA", (width, height), color=(*bg_rgb, 255))
+        fg_rgb = _hex_to_rgb(label_color)
 
-    img = Image.new("RGBA", (width, height), color=(*bg_rgb, 255))
     draw = ImageDraw.Draw(img)
 
     # Grid logic
