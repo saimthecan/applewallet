@@ -138,6 +138,7 @@ def _make_stamp_strip(
     campaign_name: Optional[str] = None,
     reward_text: Optional[str] = None,
     instagram: Optional[str] = None,
+    logo_icon: Optional[bytes] = None,
 ) -> bytes:
     width, height = 750, 300
     
@@ -145,7 +146,6 @@ def _make_stamp_strip(
     bg_img = _load_strip_bg()
     if bg_img:
         img = bg_img.resize((width, height), Image.LANCZOS)
-        # On light background, use dark text if primary color is too light
         fg_rgb = (40, 30, 20) # Deep coffee brown
     else:
         bg_rgb = _hex_to_rgb(primary_color)
@@ -154,6 +154,14 @@ def _make_stamp_strip(
 
     draw = ImageDraw.Draw(img)
 
+    # Draw logo icon on the top-right of the strip if provided
+    if logo_icon:
+        l_img = Image.open(BytesIO(logo_icon)).convert("RGBA")
+        l_size = 60
+        l_img = l_img.resize((l_size, l_size), Image.LANCZOS)
+        # Paste with a small margin from top-right
+        img.paste(l_img, (width - l_size - 25, 25), l_img)
+
     # Grid logic
     cols = goal if goal <= 6 else (goal + 1) // 2
     rows = 1 if goal <= 6 else 2
@@ -161,7 +169,6 @@ def _make_stamp_strip(
     padding_x = 40
     spacing_x = (width - padding_x * 2) // max(1, cols - 1) if cols > 1 else 0
     spacing_y = 80
-    # Move stamps down to make room for campaign name at the top of the strip
     start_y = 110 if rows == 1 else 95
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
@@ -187,7 +194,6 @@ def _make_stamp_strip(
             img.paste(stamp_img, (int(x), int(y)), stamp_img)
 
     if campaign_name:
-        # Draw campaign name at the top of the strip
         campaign_font = _get_bold_font(24)
         c_bbox = draw.textbbox((0, 0), tr_upper(campaign_name), font=campaign_font)
         c_w = c_bbox[2] - c_bbox[0]
@@ -234,12 +240,12 @@ def build_pkpass(
 ) -> bytes:
     buf = BytesIO()
     with zipfile.ZipFile(buf, "w", zipfile.ZIP_DEFLATED) as zf:
-        icon = _make_icon_png(58, primary_color, merchant_name[0])
+        icon = _make_icon_png(60, primary_color, merchant_name[0])
         zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
         zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
         
-        # Include campaign_name in the strip generation
-        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name)
+        # Pass the logo icon to be drawn on the strip
+        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, logo_icon=icon)
         zf.writestr("strip.png", strip); zf.writestr("strip@2x.png", strip)
         
         pass_json = {
@@ -254,9 +260,7 @@ def build_pkpass(
             "foregroundColor": foreground_color,
             "labelColor": label_color,
             "storeCard": {
-                "headerFields": [
-                    {"key": "bear_header", "label": "LOYO", "value": "🐻"}
-                ],
+                "headerFields": [], # Removed bear from here
                 "primaryFields": [], 
                 "secondaryFields": [
                     {"key": "puan", "label": "PUAN", "value": f"{current_stamps} / {goal}"}
