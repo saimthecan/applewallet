@@ -154,14 +154,22 @@ def _make_stamp_strip(
 
     draw = ImageDraw.Draw(img)
 
-    # Grid logic
-    cols = goal if goal <= 6 else (goal + 1) // 2
-    rows = 1 if goal <= 6 else 2
-    icon_size = 72 if rows == 1 else 60
-    padding_x = 40
-    spacing_x = (width - padding_x * 2) // max(1, cols - 1) if cols > 1 else 0
-    spacing_y = 80
-    start_y = 110 if rows == 1 else 95
+    # Optimized Grid logic for a "premium" compact look
+    cols = goal if goal <= 5 else (goal + 1) // 2
+    rows = 1 if goal <= 5 else 2
+    icon_size = 76 if rows == 1 else 66
+    
+    # Use a fixed, tighter spacing instead of filling the whole width
+    spacing_x = 110 if rows == 1 else 100
+    spacing_y = 95 if rows == 2 else 0
+    
+    # Calculate the total width of the grid to center it
+    total_grid_w = (cols - 1) * spacing_x + icon_size
+    start_x_base = (width - total_grid_w) // 2
+    
+    # Vertical centering
+    grid_h = (rows - 1) * spacing_y + icon_size
+    start_y = (height - grid_h) // 2 + 30 # Slightly down to account for campaign name
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
     empty_icon = None
@@ -172,6 +180,8 @@ def _make_stamp_strip(
 
     for i in range(goal):
         r, c = i // cols, i % cols
+        
+        # Calculate centering for each row (in case the last row has fewer items)
         row_count = cols if (r < rows - 1) else (goal - r * cols)
         row_w = (row_count - 1) * spacing_x + icon_size
         x = (width - row_w) // 2 + c * spacing_x
