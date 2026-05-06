@@ -337,7 +337,9 @@ def build_pkpass(
             "foregroundColor": foreground_color,
             "labelColor": label_color,
             "storeCard": {
-                "headerFields": [], # Removed bear from here
+                "headerFields": [
+                    {"key": "reward_status", "label": "", "value": "Ödülün Hazır 🎁"}
+                ] if current_stamps >= goal else [],
                 "primaryFields": [], 
                 "secondaryFields": [
                     {"key": "puan", "label": "PUAN", "value": f"{current_stamps} / {goal}"}
