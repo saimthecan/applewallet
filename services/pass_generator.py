@@ -270,9 +270,9 @@ def _make_stamp_strip(
     return buf.getvalue()
 
 def sign_pkpass(pkpass_source: BytesIO) -> bytes:
-    p12_bytes = base64.b64decode(settings.apple_pass_cert_p12_b64)
-    key, cert, _ = load_key_and_certificates(p12_bytes, settings.apple_pass_cert_password.encode())
-    wwdr_raw = base64.b64decode(settings.apple_wwdr_cert_b64)
+    p12_bytes = base64.b64decode(settings.apple_pass_cert_p12_b64.strip())
+    key, cert, _ = load_key_and_certificates(p12_bytes, settings.apple_pass_cert_password.strip().encode())
+    wwdr_raw = base64.b64decode(settings.apple_wwdr_cert_b64.strip())
     try:
         wwdr_cert = load_pem_x509_certificate(wwdr_raw)
     except Exception:
@@ -356,3 +356,34 @@ def build_pkpass(
         zf.writestr("pass.json", json.dumps(pass_json, ensure_ascii=False).encode())
     
     return sign_pkpass(buf)
+
+
+def get_pass_data_for_preview(
+    merchant_name: str = "Bear Coffee",
+    campaign_name: str = "8 KAHVE ALANA 1 ADET BİZDEN",
+    reward_text: str = "Filtre Kahve",
+    current_stamps: int = 3,
+    goal: int = 8,
+    primary_color: str = "#7C3AED",
+    label_color: str = "#FFFFFF",
+    foreground_color: str = "#FFFFFF",
+    stamp_symbol: str = "☕",
+) -> dict:
+    """Web önizlemesi için gerekli görselleri ve metinleri hazırlar."""
+    icon_bytes = _make_icon_png(60, primary_color, merchant_name[0])
+    strip_bytes = _make_stamp_strip(
+        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name
+    )
+
+    return {
+        "merchant_name": merchant_name,
+        "campaign_name": campaign_name,
+        "reward_text": reward_text,
+        "current_stamps": current_stamps,
+        "goal": goal,
+        "primary_color": primary_color,
+        "label_color": label_color,
+        "foreground_color": foreground_color,
+        "logo_base64": base64.b64encode(icon_bytes).decode(),
+        "strip_base64": base64.b64encode(strip_bytes).decode(),
+    }

@@ -7,10 +7,10 @@ from fastapi.responses import HTMLResponse, Response
 
 try:
     from core.config import settings
-    from services.pass_generator import build_pkpass
+    from services.pass_generator import build_pkpass, get_pass_data_for_preview
 except ModuleNotFoundError:
     from .core.config import settings
-    from .services.pass_generator import build_pkpass
+    from .services.pass_generator import build_pkpass, get_pass_data_for_preview
 
 
 app = FastAPI(title="Wallet Pass Test", version="0.1.0")
@@ -98,7 +98,8 @@ def index():
       <h1>Apple Wallet Test Pass</h1>
       <p>iPhone Kamera ile QR'i okut veya direkt linke bas.</p>
       <img src="{qr_url}" alt="Apple Wallet test pass QR" />
-      <a href="{pass_url}">Test .pkpass ac</a>
+      <a href="{pass_url}">Test .pkpass indir</a>
+      <a href="/preview" style="background: #7c3aed; color: white; margin-top: 10px;">💻 Tarayıcıda Önizle (Canlı)</a>
       <p><code>{pass_url}</code></p>
     </main>
   </body>
@@ -136,3 +137,156 @@ def pass_file():
             "Cache-Control": "no-store",
         },
     )
+
+
+@app.get("/preview", response_class=HTMLResponse)
+def preview_pass():
+    data = get_pass_data_for_preview(
+        current_stamps=3,
+        goal=8,
+        primary_color="#7C3AED",
+        merchant_name="Bear Coffee",
+    )
+    
+    return f"""
+<!doctype html>
+<html lang="tr">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Apple Wallet Preview</title>
+    <style>
+        body {{
+            background: #0f172a;
+            color: white;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            padding: 40px 20px;
+            margin: 0;
+        }}
+        .wallet-card {{
+            width: 350px;
+            background-color: {data['primary_color']};
+            border-radius: 20px;
+            overflow: hidden;
+            box-shadow: 0 20px 50px rgba(0,0,0,0.5);
+            position: relative;
+        }}
+        .header {{
+            padding: 15px 20px;
+            display: flex;
+            align-items: center;
+            gap: 12px;
+        }}
+        .logo {{
+            width: 30px;
+            height: 30px;
+            border-radius: 6px;
+            background: white;
+            object-fit: cover;
+        }}
+        .merchant-name {{
+            font-weight: 600;
+            font-size: 16px;
+            color: {data['label_color']};
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }}
+        .strip-container {{
+            width: 100%;
+            height: 140px;
+            background: #000;
+            overflow: hidden;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+        }}
+        .strip-img {{
+            width: 100%;
+            height: 100%;
+            object-fit: cover;
+        }}
+        .fields {{
+            padding: 20px;
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 15px;
+        }}
+        .field-label {{
+            font-size: 10px;
+            font-weight: 700;
+            color: {data['label_color']};
+            opacity: 0.8;
+            margin-bottom: 2px;
+            text-transform: uppercase;
+        }}
+        .field-value {{
+            font-size: 18px;
+            font-weight: 600;
+            color: {data['foreground_color']};
+        }}
+        .barcode-section {{
+            background: white;
+            margin: 10px 20px 20px;
+            padding: 15px;
+            border-radius: 12px;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+        }}
+        .qr-placeholder {{
+            width: 120px;
+            height: 120px;
+            background: #eee;
+            border-radius: 4px;
+            margin-bottom: 5px;
+        }}
+        .back-btn {{
+            margin-top: 30px;
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 14px;
+        }}
+        .back-btn:hover {{ color: white; }}
+    </style>
+</head>
+<body>
+    <h2 style="margin-bottom: 30px;">Apple Wallet Önizleme</h2>
+    
+    <div class="wallet-card">
+        <div class="header">
+            <img class="logo" src="data:image/png;base64,{data['logo_base64']}" alt="logo">
+            <div class="merchant-name">{data['merchant_name']}</div>
+        </div>
+        
+        <div class="strip-container">
+            <img class="strip-img" src="data:image/png;base64,{data['strip_base64']}" alt="strip">
+        </div>
+        
+        <div class="fields">
+            <div>
+                <div class="field-label">PUAN</div>
+                <div class="field-value">{data['current_stamps']} / {data['goal']}</div>
+            </div>
+            <div style="text-align: right;">
+                <div class="field-label">HEDİYE</div>
+                <div class="field-value">{data['reward_text']}</div>
+            </div>
+        </div>
+        
+        <div class="barcode-section">
+            <img class="qr-placeholder" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=preview" alt="QR">
+            <div style="color: #000; font-size: 10px; font-weight: bold; margin-top: 5px;">KART KODU</div>
+        </div>
+    </div>
+
+    <a href="/" class="back-btn">← Ana Sayfaya Dön</a>
+    <p style="margin-top: 40px; font-size: 12px; color: #64748b; text-align: center;">
+        Bu sayfa yerel tasarım sürecini hızlandırmak için oluşturulmuştur.<br>
+        Kodda yaptığınız değişiklikleri görmek için sayfayı yenileyin.
+    </p>
+</body>
+</html>
+"""
