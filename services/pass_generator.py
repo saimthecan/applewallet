@@ -348,7 +348,9 @@ def build_pkpass(
                 ] if current_stamps >= goal else [
                     {"key": "reward", "label": "HEDİYE", "value": reward_text}
                 ],
-                "auxiliaryFields": [],
+                "auxiliaryFields": [
+                    {"key": "social", "label": "SOSYAL MEDYA", "value": f"@{instagram}"}
+                ] if instagram else [],
                 "backFields": [
                     {"key": "info", "label": "BİLGİ", "value": f"{goal} damgada 1 {reward_text} hediye!"}
                 ]
@@ -361,21 +363,22 @@ def build_pkpass(
 
 
 def get_pass_data_for_preview(
+    current_stamps: int,
+    goal: int,
     merchant_name: str = "Bear Coffee",
     campaign_name: str = "8 KAHVE ALANA 1 ADET BİZDEN",
     reward_text: str = "Filtre Kahve",
-    current_stamps: int = 3,
-    goal: int = 8,
     primary_color: str = "#7C3AED",
     label_color: str = "#FFFFFF",
     foreground_color: str = "#FFFFFF",
     stamp_symbol: str = "☕",
+    instagram: str = None,
 ) -> dict:
     """Web önizlemesi için gerekli görselleri ve metinleri hazırlar."""
     is_reward_ready = current_stamps >= goal
     icon_bytes = _make_icon_png(60, primary_color, merchant_name[0])
     strip_bytes = _make_stamp_strip(
-        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready
+        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready, instagram=instagram
     )
 
     return {
@@ -389,5 +392,6 @@ def get_pass_data_for_preview(
         "foreground_color": foreground_color,
         "logo_base64": base64.b64encode(icon_bytes).decode(),
         "strip_base64": base64.b64encode(strip_bytes).decode(),
-        "is_reward_ready": is_reward_ready
+        "is_reward_ready": is_reward_ready,
+        "instagram": instagram
     }
