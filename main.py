@@ -116,12 +116,12 @@ def pass_file():
         pass_id=f"test-{uuid.uuid4()}",
         serial=f"SER-{uuid.uuid4().hex[:8].upper()}",
         user_name="Saim Can Özgen",
-        current_stamps=3,
+        current_stamps=8,
         goal=8,
         stamp_symbol="☕",
         merchant_name="Bear Coffee",
         campaign_name="8 KAHVE ALANA 1 ADET BİZDEN",
-        reward_text="Filtre Kahve",
+        reward_text="3 Adet Filtre Kahve Daha Ne kadar uzatabilirim bilmiyorum ama uzatabildiğim kadar yani buraya istediğim uzunlukta yazabiliyorum",
         primary_color="#7C3AED",
         label_color="#FFFFFF",
         foreground_color="#FFFFFF",
@@ -142,8 +142,9 @@ def pass_file():
 @app.get("/preview", response_class=HTMLResponse)
 def preview_pass():
     data = get_pass_data_for_preview(
-        current_stamps=3,
+        current_stamps=8,
         goal=8,
+        reward_text="3 Adet Filtre Kahve",
         primary_color="#7C3AED",
         merchant_name="Bear Coffee",
     )
@@ -259,6 +260,10 @@ def preview_pass():
         <div class="header">
             <img class="logo" src="data:image/png;base64,{data['logo_base64']}" alt="logo">
             <div class="merchant-name">{data['merchant_name']}</div>
+            <div style="margin-left: auto; text-align: right;">
+                <div class="field-label">PUAN</div>
+                <div class="field-value" style="font-size: 14px;">{data['current_stamps']} / {data['goal']}</div>
+            </div>
         </div>
         
         <div class="strip-container">
@@ -266,14 +271,18 @@ def preview_pass():
         </div>
         
         <div class="fields">
-            <div>
-                <div class="field-label">PUAN</div>
-                <div class="field-value">{data['current_stamps']} / {data['goal']}</div>
+            {f'''
+            <div style="grid-column: span 2;">
+                <div class="field-label"></div>
+                <div class="field-value" style="font-size: 20px; color: #fbbf24; text-align: left;">{data['reward_text']} Ödülünüz Hazır! 🎁</div>
             </div>
-            <div style="text-align: right;">
+            ''' if data['is_reward_ready'] else f'''
+            <div>
                 <div class="field-label">HEDİYE</div>
                 <div class="field-value">{data['reward_text']}</div>
             </div>
+            <div style="text-align: right;"></div>
+            '''}
         </div>
         
         <div class="barcode-section">

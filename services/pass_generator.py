@@ -206,6 +206,7 @@ def _make_stamp_strip(
     reward_text: Optional[str] = None,
     instagram: Optional[str] = None,
     logo_icon: Optional[bytes] = None,
+    is_reward_ready: bool = False,
 ) -> bytes:
     width, height = 750, 300
     goal = _clamp_stamp_goal(goal)
@@ -321,8 +322,9 @@ def build_pkpass(
             zf.writestr("icon.png", icon); zf.writestr("icon@2x.png", icon)
             zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
         
-        # Include campaign_name in the strip generation
-        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name)
+        # Include campaign_name and reward status in the strip generation
+        is_reward_ready = current_stamps >= goal
+        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready)
         zf.writestr("strip.png", strip); zf.writestr("strip@2x.png", strip)
         
         pass_json = {
@@ -338,15 +340,15 @@ def build_pkpass(
             "labelColor": label_color,
             "storeCard": {
                 "headerFields": [
-                    {"key": "reward_status", "label": "", "value": "Ödülün Hazır 🎁"}
-                ] if current_stamps >= goal else [],
-                "primaryFields": [], 
-                "secondaryFields": [
                     {"key": "puan", "label": "PUAN", "value": f"{current_stamps} / {goal}"}
                 ],
-                "auxiliaryFields": [
+                "primaryFields": [], 
+                "secondaryFields": [
+                    {"key": "reward", "label": "", "value": f"{reward_text} Ödülünüz Hazır! 🎁"}
+                ] if current_stamps >= goal else [
                     {"key": "reward", "label": "HEDİYE", "value": reward_text}
                 ],
+                "auxiliaryFields": [],
                 "backFields": [
                     {"key": "info", "label": "BİLGİ", "value": f"{goal} damgada 1 {reward_text} hediye!"}
                 ]
@@ -370,9 +372,10 @@ def get_pass_data_for_preview(
     stamp_symbol: str = "☕",
 ) -> dict:
     """Web önizlemesi için gerekli görselleri ve metinleri hazırlar."""
+    is_reward_ready = current_stamps >= goal
     icon_bytes = _make_icon_png(60, primary_color, merchant_name[0])
     strip_bytes = _make_stamp_strip(
-        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name
+        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready
     )
 
     return {
@@ -386,4 +389,5 @@ def get_pass_data_for_preview(
         "foreground_color": foreground_color,
         "logo_base64": base64.b64encode(icon_bytes).decode(),
         "strip_base64": base64.b64encode(strip_bytes).decode(),
+        "is_reward_ready": is_reward_ready
     }
