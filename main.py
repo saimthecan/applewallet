@@ -116,19 +116,19 @@ def pass_file():
         pass_id=f"test-{uuid.uuid4()}",
         serial=f"SER-{uuid.uuid4().hex[:8].upper()}",
         user_name="Saim Can Özgen",
-        current_stamps=10,
+        current_stamps=6,
         goal=10,
         stamp_symbol="☕",
         merchant_name="Bear Coffee",
-        campaign_name="İNDİRİM 500 Gr Tuzlu Fıstık 190 Tl yerine 140 Tl",
-        reward_text="Tuzlu Fıstık",
-        primary_color="#00704A",
+        campaign_name="10 KAHVE AL BİRİ BİZDEN",
+        reward_text="FİLTRE KAHVE",
+        primary_color="#064E3B",
         label_color="#FFFFFF",
         foreground_color="#FFFFFF",
         instagram="loyalbear.co",
         language="tr",
-        used_rewards=1,
-        total_rewards=3,
+        used_rewards=5,
+        total_rewards=25,
     )
     
     return Response(
@@ -144,13 +144,14 @@ def pass_file():
 @app.get("/preview", response_class=HTMLResponse)
 def preview_pass():
     data = get_pass_data_for_preview(
-        current_stamps=10,
+        current_stamps=6,
         goal=10,
         reward_text="3 Adet Filtre Kahve",
-        primary_color="#FF6600",
+        primary_color="#064E3B",
         merchant_name="Bear Coffee",
-        used_rewards=1,
-        total_rewards=3,
+        used_rewards=5,
+        total_rewards=25,
+        instagram="loyalbear.co"
     )
     
     return f"""
@@ -274,14 +275,20 @@ def preview_pass():
             <img class="strip-img" src="data:image/png;base64,{data['strip_base64']}" alt="strip">
         </div>
         
+        <!-- Header Override (Toplam/Kalan) -->
+        <script>
+            document.querySelector('.header-label').innerText = 'KAZANILAN ÖDÜL';
+            document.querySelector('.header-value').innerText = "{data['total_rewards']}";
+        </script>
+
         <div class="fields">
             <div>
                 <div class="field-label">ÖDÜL</div>
                 <div class="field-value">{data['reward_text']}</div>
             </div>
             <div style="text-align: right;">
-                <div class="field-label">KULLANILAN ÖDÜL</div>
-                <div class="field-value">{data['used_rewards']} / {data['total_rewards']}</div>
+                <div class="field-label">KALAN ÖDÜLÜM</div>
+                <div class="field-value">{data['total_rewards'] - data['used_rewards']} ADET</div>
             </div>
         </div>
         

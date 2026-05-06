@@ -166,35 +166,72 @@ def _draw_premium_stamp_slot(
     primary_rgb: tuple,
     filled: bool,
 ) -> tuple:
+    """Damga yuvalarını 'Buzlu Cam' (Glass-Marble) stilinde çizer."""
     center_x = x + icon_size // 2
     center_y = y + icon_size // 2
-    radius = icon_size // 2 + 9
+    radius = icon_size // 2 + 8
     bbox = [center_x - radius, center_y - radius, center_x + radius, center_y + radius]
-    shadow_box = [bbox[0] + 2, bbox[1] + 5, bbox[2] + 2, bbox[3] + 5]
+    
+    # Şeffaf katman oluştur (Cam efekti için)
+    layer = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    l_draw = ImageDraw.Draw(layer)
 
     if filled:
-        base = (*primary_rgb, 232)
-        rim = (*_blend_rgb(primary_rgb, (255, 255, 255), 0.24), 235)
-        inner = (*_blend_rgb(primary_rgb, (30, 20, 55), 0.20), 240)
-        shine = (255, 255, 255, 54)
-        _draw_blurred_ellipse(img, shadow_box, (34, 20, 58, 88), 8)
-        _draw_blurred_ellipse(img, [bbox[0] - 5, bbox[1] - 5, bbox[2] + 5, bbox[3] + 5], (*primary_rgb, 42), 10)
-        draw.ellipse(bbox, fill=base, outline=rim, width=3)
-        inset = 7
-        draw.ellipse([bbox[0] + inset, bbox[1] + inset, bbox[2] - inset, bbox[3] - inset], outline=inner, width=2)
-        draw.arc([bbox[0] + 12, bbox[1] + 10, bbox[2] - 12, bbox[3] - 12], 205, 335, fill=shine, width=3)
+        # DOLU DAMGA: Kehribar Parıltılı Cam
+        _draw_blurred_ellipse(img, [bbox[0]-4, bbox[1]-4, bbox[2]+4, bbox[3]+4], (251, 191, 36, 40), 10)
+        l_draw.ellipse(bbox, fill=(255, 255, 255, 45), outline=(255, 255, 255, 120), width=1)
+        inner_r = radius - 10
+        l_draw.ellipse([center_x - inner_r, center_y - inner_r, center_x + inner_r, center_y + inner_r], fill=(251, 191, 36, 80))
         icon_alpha = 255
     else:
-        base = (*primary_rgb, 118)
-        rim = (*_blend_rgb(primary_rgb, (255, 255, 255), 0.34), 96)
-        inner = (*primary_rgb, 62)
-        _draw_blurred_ellipse(img, shadow_box, (34, 20, 58, 42), 7)
-        draw.ellipse(bbox, fill=base, outline=rim, width=2)
-        inset = 8
-        draw.ellipse([bbox[0] + inset, bbox[1] + inset, bbox[2] - inset, bbox[3] - inset], outline=inner, width=2)
-        icon_alpha = 22
+        # BOŞ DAMGA: Belirgin Füme Cam
+        l_draw.ellipse(bbox, fill=(0, 0, 0, 40), outline=(0, 0, 0, 80), width=1)
+        inner_r = radius - 2
+        l_draw.ellipse([center_x - inner_r, center_y - inner_r, center_x + inner_r, center_y + inner_r], outline=(255, 255, 255, 30), width=1)
+        icon_alpha = 70
 
+    # Cam katmanını ana resme ekle
+    img.alpha_composite(layer)
+    
     return (x, y, icon_alpha)
+
+def _get_emoji_font(size: int):
+    """Sistemde mevcut olan en iyi emoji fontunu bulmaya çalışır."""
+    paths = [
+        "C:/Windows/Fonts/seguiemj.ttf",  # Windows Emoji
+        "seguiemj.ttf",
+        "Apple Color Emoji.ttc",         # macOS
+        "/usr/share/fonts/truetype/noto/NotoColorEmoji.ttf", # Linux
+    ]
+    for path in paths:
+        try:
+            if Path(path).exists() or path == "seguiemj.ttf":
+                return ImageFont.truetype(path, size)
+        except:
+            continue
+    return _get_bold_font(size)
+
+def _make_stamp_icon(size: int, label_color: str, symbol: str, primary_color: str, is_filled: bool):
+    """Şık bir damga ikonu oluşturur (Emoji desteğiyle)."""
+    img = Image.new("RGBA", (size, size), (0, 0, 0, 0))
+    draw = ImageDraw.Draw(img)
+    
+    # Daire Arka Planı
+    if is_filled:
+        draw.ellipse([2, 2, size-2, size-2], fill=primary_color, outline=label_color, width=2)
+    else:
+        draw.ellipse([2, 2, size-2, size-2], outline=label_color, width=2)
+    
+    # Emoji Sembolü
+    s_font = _get_emoji_font(int(size * 0.55))
+    s_bbox = draw.textbbox((0, 0), symbol, font=s_font)
+    s_w = s_bbox[2] - s_bbox[0]
+    s_h = s_bbox[3] - s_bbox[1]
+    
+    # Emojiyi merkeze çiz
+    draw.text(((size - s_w) // 2, (size - s_h) // 2 - 2), symbol, font=s_font, fill=label_color, embedded_color=True)
+    
+    return img
 
 def _make_stamp_strip(
     current_stamps: int,
@@ -208,32 +245,44 @@ def _make_stamp_strip(
     logo_icon: Optional[bytes] = None,
     is_reward_ready: bool = False,
 ) -> bytes:
+    """Orijinal Temiz ve Premium Damga Şeridi (Ortalı Düzen)."""
     width, height = 750, 300
     goal = _clamp_stamp_goal(goal)
     current_stamps = max(0, min(goal, int(current_stamps)))
     
-    # Load custom background or fallback to solid color
     bg_img = _load_strip_bg()
     if bg_img:
         img = bg_img.resize((width, height), Image.LANCZOS)
-        fg_rgb = (40, 30, 20) # Deep coffee brown
     else:
         bg_rgb = _hex_to_rgb(primary_color)
         img = Image.new("RGBA", (width, height), color=(*bg_rgb, 255))
-        fg_rgb = _hex_to_rgb(label_color)
 
     draw = ImageDraw.Draw(img)
+    primary_rgb = _hex_to_rgb(primary_color)
+    fg_rgb = _hex_to_rgb(label_color)
 
+    # 1. KAMPANYA METNİ (Üst Orta)
+    if campaign_name:
+        c_font = _get_bold_font(24)
+        c_text = tr_upper(campaign_name)
+        c_bbox = draw.textbbox((0, 0), c_text, font=c_font)
+        c_w = c_bbox[2] - c_bbox[0]
+        # Siyah metin
+        draw.text(((width - c_w) // 2, 15), c_text, fill=(0, 0, 0), font=c_font)
+
+    # 2. DAMGALAR (Merkezi Premium Düzen)
     layout = _STAMP_LAYOUTS[goal]
     row_counts = layout["rows"]
     icon_size = layout["icon"]
     spacing_x = layout["gap_x"]
     spacing_y = layout["gap_y"]
-    primary_rgb = _hex_to_rgb(primary_color)
 
     grid_h = (len(row_counts) - 1) * spacing_y + icon_size
+    grid_w = (max(row_counts) - 1) * spacing_x + icon_size
+    
+    # Y ekseni hesaplama
     stamp_area_top = 62 if campaign_name else 34
-    stamp_area_bottom = height - (65 if is_reward_ready else 22)
+    stamp_area_bottom = height - 60
     start_y = stamp_area_top + max(0, (stamp_area_bottom - stamp_area_top - grid_h) // 2)
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
@@ -241,61 +290,84 @@ def _make_stamp_strip(
     for row_index, row_count in enumerate(row_counts):
         row_w = (row_count - 1) * spacing_x + icon_size
         y = start_y + row_index * spacing_y
+        # TAM MERKEZE HİZALI (Orijinal)
+        row_x = (width - row_w) // 2
 
         for col_index in range(row_count):
-            x = (width - row_w) // 2 + col_index * spacing_x
+            x = row_x + col_index * spacing_x
             is_filled = stamp_index < current_stamps
+            
+            # Premium Slot Çizimi
             _, _, icon_alpha = _draw_premium_stamp_slot(img, draw, int(x), int(y), icon_size, primary_rgb, is_filled)
 
-            if filled_icon:
+            if filled_icon and is_filled:
                 stamp_img = filled_icon.copy()
                 if icon_alpha < 255:
                     alpha = stamp_img.split()[3].point(lambda p: int(p * icon_alpha / 255))
                     stamp_img.putalpha(alpha)
-                icon_padding = 4 if is_filled else 9
-                if icon_padding:
-                    stamp_img = stamp_img.resize((icon_size - icon_padding * 2, icon_size - icon_padding * 2), Image.LANCZOS)
-                paste_x = int(x) + icon_padding
-                paste_y = int(y) + icon_padding
-                img.paste(stamp_img, (paste_x, paste_y), stamp_img)
+                pad = 9
+                stamp_img = stamp_img.resize((icon_size - pad*2, icon_size - pad*2), Image.LANCZOS)
+                img.paste(stamp_img, (int(x) + pad, int(y) + pad), stamp_img)
+            
             stamp_index += 1
 
-    if campaign_name:
-        campaign_font = _get_bold_font(24)
-        c_bbox = draw.textbbox((0, 0), tr_upper(campaign_name), font=campaign_font)
-        c_w = c_bbox[2] - c_bbox[0]
-        draw.text(((width - c_w) // 2, 15), tr_upper(campaign_name), fill=(*fg_rgb, 200), font=campaign_font)
+    # 3. ALT ROZETLER (Glassmorphism / Buzlu Cam Etkisi)
+    # Şeffaf katman oluştur
+    overlay = Image.new("RGBA", img.size, (0, 0, 0, 0))
+    ol_draw = ImageDraw.Draw(overlay)
 
-    # Ödül Hazır Rozeti (Eğer kazanıldıysa)
+    # Instagram
+    if instagram:
+        ig_text = f"@{instagram}" if not instagram.startswith("@") else instagram
+        ig_font = _get_bold_font(18)
+        ig_bbox = ol_draw.textbbox((0, 0), ig_text, font=ig_font)
+        pill_w = (ig_bbox[2]-ig_bbox[0]) + 30
+        pill_x, pill_y = 20, height - 46
+        
+        # Buzlu Cam Arka Planı (Yarı Şeffaf Beyaz + İnce Kontür)
+        ol_draw.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + 36], radius=18, fill=(255, 255, 255, 40), outline=(255, 255, 255, 100), width=1)
+        ol_draw.text((pill_x + 15, pill_y + 6), ig_text, font=ig_font, fill="#000000")
+
+    # Puan
+    puan_text = f"PUAN: {current_stamps} / {goal}"
+    p_font = _get_bold_font(18)
+    p_bbox = ol_draw.textbbox((0, 0), puan_text, font=p_font)
+    p_pill_w = (p_bbox[2]-p_bbox[0] + 30)
+    p_pill_x = (width - p_pill_w) // 2
+    p_pill_y = height - 46
+    
+    # Buzlu Cam Arka Planı
+    ol_draw.rounded_rectangle([p_pill_x, p_pill_y, p_pill_x + p_pill_w, p_pill_y + 36], radius=18, fill=(255, 255, 255, 40), outline=(255, 255, 255, 100), width=1)
+    ol_draw.text((p_pill_x + 15, p_pill_y + 6), puan_text, font=p_font, fill="#000000")
+
+    # Ödül Hazır (Golden Glass Etkisi)
     if is_reward_ready:
-        badge_text = "ÖDÜLÜNÜZ HAZIR!"
-        badge_font = _get_bold_font(18)
-        b_bbox = draw.textbbox((0, 0), badge_text, font=badge_font)
-        b_w = b_bbox[2] - b_bbox[0]
+        badge_text = "ÖDÜLÜNÜZ HAZIR! "
+        b_font = _get_bold_font(18)
+        e_font = _get_emoji_font(18)
         
-        icon_size = 18
-        pill_w = b_w + icon_size + 45
-        pill_h = 32
-        pill_x = width - pill_w - 25
-        pill_y = height - pill_h - 10
+        # Genişlik hesaplama
+        b_bbox = ol_draw.textbbox((0, 0), badge_text, font=b_font)
+        e_bbox = ol_draw.textbbox((0, 0), "🎁", font=e_font)
+        text_w = b_bbox[2] - b_bbox[0]
+        emoji_w = e_bbox[2] - e_bbox[0]
         
-        # Sarı kapsül
-        draw.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + pill_h], radius=16, fill="#FBBF24")
+        pill_w = text_w + emoji_w + 40
+        pill_x = width - pill_w - 20
+        pill_y = height - 46
         
-        # EL YAPIMI HEDİYE PAKETİ ÇİZİMİ (Karakter değil, çizim!)
-        ix = pill_x + 15
-        iy = pill_y + 7
-        # Kutu gövdesi
-        draw.rectangle([ix, iy+4, ix+icon_size-4, iy+icon_size], fill="#000", outline="#000")
-        # Kurdele (Dikey ve Yatay çizgiler)
-        draw.line([ix + (icon_size-4)//2, iy+4, ix + (icon_size-4)//2, iy+icon_size], fill="#FBBF24", width=2)
-        draw.line([ix, iy + (icon_size+4)//2, ix+icon_size-4, iy + (icon_size+4)//2], fill="#FBBF24", width=2)
-        # Fiyonk (Üst kısım)
-        draw.ellipse([ix+2, iy, ix+(icon_size-4)//2, iy+5], outline="#000", width=2)
-        draw.ellipse([ix+(icon_size-4)//2, iy, ix+icon_size-6, iy+5], outline="#000", width=2)
+        # Premium Altın Cam (Yarı Şeffaf Kehribar + Parlak Kontür)
+        ol_draw.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + 36], radius=18, fill=(251, 191, 36, 160), outline=(251, 191, 36, 255), width=1)
         
-        # Siyah metin
-        draw.text((pill_x + 20 + icon_size, pill_y + 5), badge_text, font=badge_font, fill="#000000")
+        # Metin ve emojiyi kutu içinde ORTALA
+        content_total_w = text_w + emoji_w
+        start_x = pill_x + (pill_w - content_total_w) // 2
+        
+        ol_draw.text((start_x, pill_y + 6), badge_text, font=b_font, fill="#000000")
+        ol_draw.text((start_x + text_w, pill_y + 6), "🎁", font=e_font, fill="#000000", embedded_color=True)
+
+    # Katmanı ana resme işle
+    img.alpha_composite(overlay)
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -356,10 +428,21 @@ def build_pkpass(
             zf.writestr("logo.png", icon); zf.writestr("logo@2x.png", icon)
         
         # Include campaign_name and reward status in the strip generation
-        is_reward_ready = current_stamps >= goal
-        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready)
+        # Rozet mantığı: Eğer harcanmamış ödül varsa göster
+        has_available_rewards = (total_rewards - used_rewards) > 0
+        strip = _make_stamp_strip(current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=has_available_rewards, instagram=instagram)
         zf.writestr("strip.png", strip); zf.writestr("strip@2x.png", strip)
         
+        # Tier (Seviye) Mantığı - İngilizce ve Büyük Harf
+        if total_rewards >= 51:
+            tier_name = "DIAMOND BEAR"
+        elif total_rewards >= 16:
+            tier_name = "GOLDEN BEAR"
+        elif total_rewards >= 6:
+            tier_name = "SILVER BEAR"
+        else:
+            tier_name = "BRONZE BEAR"
+
         pass_json = {
             "formatVersion": 1,
             "passTypeIdentifier": settings.apple_pass_type_id,
@@ -373,12 +456,12 @@ def build_pkpass(
             "labelColor": label_color,
             "storeCard": {
                 "headerFields": [
-                    {"key": "puan", "label": "PUAN", "value": f"{current_stamps} / {goal}"}
+                    {"key": "total_earned", "label": "KAZANILAN ÖDÜL", "value": f"{total_rewards}"}
                 ],
                 "primaryFields": [], 
                 "secondaryFields": [
                     {"key": "reward", "label": "ÖDÜL", "value": reward_text},
-                    {"key": "used_count", "label": "KULLANILAN ÖDÜL", "value": f"{used_rewards} / {total_rewards}"}
+                    {"key": "remaining", "label": "KALAN ÖDÜLÜM", "value": f"{total_rewards - used_rewards} ADET"}
                 ],
                 "auxiliaryFields": [],
                 "backFields": [
@@ -407,10 +490,18 @@ def get_pass_data_for_preview(
     total_rewards: int = 3,
 ) -> dict:
     """Web önizlemesi için gerekli görselleri ve metinleri hazırlar."""
-    is_reward_ready = current_stamps >= goal
+    # Rozet mantığı: Eğer harcanmamış ödül varsa göster
+    has_available_rewards = (total_rewards - used_rewards) > 0
     icon_bytes = _make_icon_png(60, primary_color, merchant_name[0])
     strip_bytes = _make_stamp_strip(
-        current_stamps, goal, primary_color, label_color, stamp_symbol, campaign_name, is_reward_ready=is_reward_ready, instagram=instagram
+        current_stamps=current_stamps,
+        goal=goal,
+        primary_color=primary_color,
+        label_color=label_color,
+        stamp_symbol=stamp_symbol,
+        campaign_name=campaign_name,
+        is_reward_ready=has_available_rewards,
+        instagram=instagram
     )
 
     return {
@@ -424,7 +515,7 @@ def get_pass_data_for_preview(
         "foreground_color": foreground_color,
         "logo_base64": base64.b64encode(icon_bytes).decode(),
         "strip_base64": base64.b64encode(strip_bytes).decode(),
-        "is_reward_ready": is_reward_ready,
+        "is_reward_ready": has_available_rewards,
         "instagram": instagram,
         "used_rewards": used_rewards,
         "total_rewards": total_rewards
