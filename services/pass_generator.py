@@ -348,9 +348,7 @@ def build_pkpass(
                 ] if current_stamps >= goal else [
                     {"key": "reward", "label": "HEDİYE", "value": reward_text}
                 ],
-                "auxiliaryFields": [
-                    {"key": "social", "label": "SOSYAL MEDYA", "value": f"@{instagram}"}
-                ] if instagram else [],
+                "auxiliaryFields": [],
                 "backFields": [
                     {"key": "info", "label": "BİLGİ", "value": f"{goal} damgada 1 {reward_text} hediye!"}
                 ]

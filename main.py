@@ -120,12 +120,12 @@ def pass_file():
         goal=8,
         stamp_symbol="☕",
         merchant_name="Bear Coffee",
-        campaign_name="8 KAHVE ALANA 1 ADET BİZDEN - 2. Promo ARsenal dün maçı kazandı mesela",
-        reward_text="3 Adet Filtre Kahve diğer kısmları da uzatayım bakalım nasıl olacak",
+        campaign_name="500 gr Tuzlu Fıstık 190 TL yerine 140 TL",
+        reward_text="500 Gr Tuzluğu Fıstığı 140 Tl'den Alabilirsiniz",
         primary_color="#7C3AED",
         label_color="#FFFFFF",
         foreground_color="#FFFFFF",
-        instagram="loyalbear.co bu da 2. satır uzadığında noluyor",
+        instagram="loyalbear.co",
         language="tr",
     )
     
@@ -284,15 +284,6 @@ def preview_pass():
             <div style="text-align: right;"></div>
             '''}
         </div>
-
-        {f'''
-        <div class="fields" style="margin-top: 10px; border-top: 1px solid rgba(255,255,255,0.1); padding-top: 10px;">
-            <div>
-                <div class="field-label">SOSYAL MEDYA</div>
-                <div class="field-value" style="font-size: 14px;">@{data['instagram']}</div>
-            </div>
-        </div>
-        ''' if data['instagram'] else ''}
         
         <div class="barcode-section">
             <img class="qr-placeholder" src="https://api.qrserver.com/v1/create-qr-code/?size=120x120&data=preview" alt="QR">
