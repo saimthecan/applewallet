@@ -233,7 +233,7 @@ def _make_stamp_strip(
 
     grid_h = (len(row_counts) - 1) * spacing_y + icon_size
     stamp_area_top = 62 if campaign_name else 34
-    stamp_area_bottom = height - 22
+    stamp_area_bottom = height - (65 if is_reward_ready else 22)
     start_y = stamp_area_top + max(0, (stamp_area_bottom - stamp_area_top - grid_h) // 2)
 
     filled_icon = _fetch_twemoji(stamp_symbol, icon_size)
@@ -265,6 +265,37 @@ def _make_stamp_strip(
         c_bbox = draw.textbbox((0, 0), tr_upper(campaign_name), font=campaign_font)
         c_w = c_bbox[2] - c_bbox[0]
         draw.text(((width - c_w) // 2, 15), tr_upper(campaign_name), fill=(*fg_rgb, 200), font=campaign_font)
+
+    # Ödül Hazır Rozeti (Eğer kazanıldıysa)
+    if is_reward_ready:
+        badge_text = "ÖDÜLÜNÜZ HAZIR!"
+        badge_font = _get_bold_font(18)
+        b_bbox = draw.textbbox((0, 0), badge_text, font=badge_font)
+        b_w = b_bbox[2] - b_bbox[0]
+        
+        icon_size = 18
+        pill_w = b_w + icon_size + 45
+        pill_h = 32
+        pill_x = width - pill_w - 25
+        pill_y = height - pill_h - 10
+        
+        # Sarı kapsül
+        draw.rounded_rectangle([pill_x, pill_y, pill_x + pill_w, pill_y + pill_h], radius=16, fill="#FBBF24")
+        
+        # EL YAPIMI HEDİYE PAKETİ ÇİZİMİ (Karakter değil, çizim!)
+        ix = pill_x + 15
+        iy = pill_y + 7
+        # Kutu gövdesi
+        draw.rectangle([ix, iy+4, ix+icon_size-4, iy+icon_size], fill="#000", outline="#000")
+        # Kurdele (Dikey ve Yatay çizgiler)
+        draw.line([ix + (icon_size-4)//2, iy+4, ix + (icon_size-4)//2, iy+icon_size], fill="#FBBF24", width=2)
+        draw.line([ix, iy + (icon_size+4)//2, ix+icon_size-4, iy + (icon_size+4)//2], fill="#FBBF24", width=2)
+        # Fiyonk (Üst kısım)
+        draw.ellipse([ix+2, iy, ix+(icon_size-4)//2, iy+5], outline="#000", width=2)
+        draw.ellipse([ix+(icon_size-4)//2, iy, ix+icon_size-6, iy+5], outline="#000", width=2)
+        
+        # Siyah metin
+        draw.text((pill_x + 20 + icon_size, pill_y + 5), badge_text, font=badge_font, fill="#000000")
 
     buf = BytesIO()
     img.save(buf, format="PNG")
@@ -305,6 +336,8 @@ def build_pkpass(
     auth_token: Optional[str] = None,
     language: str = "tr",
     logo_image: Optional[bytes] = None,
+    used_rewards: int = 1,
+    total_rewards: int = 3,
 ) -> bytes:
     goal = _clamp_stamp_goal(goal)
     current_stamps = max(0, min(goal, int(current_stamps)))
@@ -344,9 +377,8 @@ def build_pkpass(
                 ],
                 "primaryFields": [], 
                 "secondaryFields": [
-                    {"key": "reward", "label": "", "value": f"{reward_text} Ödülünüz Hazır! 🎁"}
-                ] if current_stamps >= goal else [
-                    {"key": "reward", "label": "HEDİYE", "value": reward_text}
+                    {"key": "reward", "label": "ÖDÜL", "value": reward_text},
+                    {"key": "used_count", "label": "KULLANILAN ÖDÜL", "value": f"{used_rewards} / {total_rewards}"}
                 ],
                 "auxiliaryFields": [],
                 "backFields": [
@@ -371,6 +403,8 @@ def get_pass_data_for_preview(
     foreground_color: str = "#FFFFFF",
     stamp_symbol: str = "☕",
     instagram: str = None,
+    used_rewards: int = 1,
+    total_rewards: int = 3,
 ) -> dict:
     """Web önizlemesi için gerekli görselleri ve metinleri hazırlar."""
     is_reward_ready = current_stamps >= goal
@@ -391,5 +425,7 @@ def get_pass_data_for_preview(
         "logo_base64": base64.b64encode(icon_bytes).decode(),
         "strip_base64": base64.b64encode(strip_bytes).decode(),
         "is_reward_ready": is_reward_ready,
-        "instagram": instagram
+        "instagram": instagram,
+        "used_rewards": used_rewards,
+        "total_rewards": total_rewards
     }

@@ -116,17 +116,19 @@ def pass_file():
         pass_id=f"test-{uuid.uuid4()}",
         serial=f"SER-{uuid.uuid4().hex[:8].upper()}",
         user_name="Saim Can Özgen",
-        current_stamps=3,
-        goal=8,
+        current_stamps=10,
+        goal=10,
         stamp_symbol="☕",
         merchant_name="Bear Coffee",
-        campaign_name="ŞOK İNDİRİM 500 Gr Tuzlu Fıstık 190 Tl yerine 140 Tl",
-        reward_text="500 Gr Tuzluğu Fıstığı 140 Tl'den Alabilirsiniz Afiyet Olsun",
-        primary_color="#7C3AED",
+        campaign_name="İNDİRİM 500 Gr Tuzlu Fıstık 190 Tl yerine 140 Tl",
+        reward_text="Tuzlu Fıstık",
+        primary_color="#00704A",
         label_color="#FFFFFF",
         foreground_color="#FFFFFF",
         instagram="loyalbear.co",
         language="tr",
+        used_rewards=1,
+        total_rewards=3,
     )
     
     return Response(
@@ -142,11 +144,13 @@ def pass_file():
 @app.get("/preview", response_class=HTMLResponse)
 def preview_pass():
     data = get_pass_data_for_preview(
-        current_stamps=8,
-        goal=8,
+        current_stamps=10,
+        goal=10,
         reward_text="3 Adet Filtre Kahve",
-        primary_color="#7C3AED",
+        primary_color="#FF6600",
         merchant_name="Bear Coffee",
+        used_rewards=1,
+        total_rewards=3,
     )
     
     return f"""
@@ -271,18 +275,14 @@ def preview_pass():
         </div>
         
         <div class="fields">
-            {f'''
-            <div style="grid-column: span 2;">
-                <div class="field-label"></div>
-                <div class="field-value" style="font-size: 20px; color: #fbbf24; text-align: left;">{data['reward_text']} Ödülünüz Hazır! 🎁</div>
-            </div>
-            ''' if data['is_reward_ready'] else f'''
             <div>
-                <div class="field-label">HEDİYE</div>
+                <div class="field-label">ÖDÜL</div>
                 <div class="field-value">{data['reward_text']}</div>
             </div>
-            <div style="text-align: right;"></div>
-            '''}
+            <div style="text-align: right;">
+                <div class="field-label">KULLANILAN ÖDÜL</div>
+                <div class="field-value">{data['used_rewards']} / {data['total_rewards']}</div>
+            </div>
         </div>
         
         <div class="barcode-section">
